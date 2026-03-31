@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledger — AI Finance Advisor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+  /* ── RESET & VARIABLES ─────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0c0e0f;
+    --surface:   #141618;
+    --border:    #222527;
+    --border2:   #2d3033;
+    --text:      #e8e6e1;
+    --muted:     #7a7e85;
+    --accent:    #c8f77e;
+    --accent2:   #ffda79;
+    --accent3:   #ff7e6b;
+    --blue:      #79c8f7;
+    --purple:    #c879f7;
+    --r:         12px;
+    --r-sm:      8px;
+    --shadow:    0 4px 24px rgba(0,0,0,.5);
+  }
+
+  html { font-size: 15px; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── NOISE OVERLAY ──────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+    opacity: 0.025;
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ── HEADER ─────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 2rem;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(12,14,15,.85);
+  }
+  .logo { font-family: 'DM Serif Display', serif; font-size: 1.5rem; color: var(--accent); letter-spacing: -.02em; }
+  .logo span { color: var(--muted); font-size: 0.75rem; font-family: 'DM Mono', monospace; display: block; margin-top: -4px; }
+  .header-status {
+    display: flex; align-items: center; gap: .5rem;
+    font-family: 'DM Mono', monospace; font-size: .75rem; color: var(--muted);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
+
+  /* ── LAYOUT ─────────────────────────────────────── */
+  main { flex: 1; display: grid; grid-template-columns: 1fr 360px; gap: 0; }
+
+  /* ── LEFT PANEL ─────────────────────────────────── */
+  .left-panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+
+  /* ── KPI STRIP ──────────────────────────────────── */
+  .kpi-strip {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .kpi {
+    padding: 1.5rem 1.25rem;
+    border-right: 1px solid var(--border);
+    transition: background .15s;
+  }
+  .kpi:last-child { border-right: none; }
+  .kpi:hover { background: rgba(255,255,255,.025); }
+  .kpi-label { font-size: .7rem; font-family: 'DM Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: .6rem; }
+  .kpi-value { font-family: 'DM Serif Display', serif; font-size: 1.75rem; color: var(--text); }
+  .kpi-value.green { color: var(--accent); }
+  .kpi-value.yellow { color: var(--accent2); }
+  .kpi-sub { font-size: .7rem; color: var(--muted); margin-top: .25rem; }
+
+  /* ── CHART + FORM ────────────────────────────────── */
+  .panel-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+
+  /* Chart area */
+  .chart-wrap {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 1.25rem;
+  }
+  .chart-title { font-size: .72rem; font-family: 'DM Mono', monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 1rem; }
+  .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 100px; }
+  .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar {
+    width: 100%; border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, var(--accent) 0%, rgba(200,247,126,.4) 100%);
+    transition: height .5s cubic-bezier(.34,1.56,.64,1);
+    min-height: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .bar:hover::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+    background: var(--border2); color: var(--text); font-size: .65rem;
+    font-family: 'DM Mono', monospace; padding: 3px 7px; border-radius: 4px;
+    white-space: nowrap; pointer-events: none;
+  }
+  .bar-label { font-size: .6rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+
+  /* Category donuts */
+  .cat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: .6rem; }
+  .cat-pill {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+    padding: .6rem .75rem; display: flex; align-items: center; gap: .5rem;
+  }
+  .cat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .cat-name { font-size: .72rem; color: var(--muted); }
+  .cat-amt  { font-size: .78rem; font-family: 'DM Mono', monospace; color: var(--text); margin-left: auto; }
+
+  /* ── ADD EXPENSE FORM ────────────────────────────── */
+  .form-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); padding: 1.25rem;
+  }
+  .form-title { font-family: 'DM Serif Display', serif; font-size: 1rem; margin-bottom: 1rem; color: var(--text); }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+  .form-grid.full { grid-template-columns: 1fr; }
+  label { font-size: .7rem; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: .3rem; }
+  input, select, textarea {
+    width: 100%; background: var(--bg); border: 1px solid var(--border2);
+    border-radius: var(--r-sm); color: var(--text); font-family: 'DM Sans', sans-serif;
+    font-size: .85rem; padding: .55rem .75rem; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(200,247,126,.08);
+  }
+  select option { background: var(--surface); }
+  textarea { resize: vertical; min-height: 56px; }
+  .btn-add {
+    margin-top: .75rem; width: 100%; padding: .75rem;
+    background: var(--accent); color: #0c0e0f; font-family: 'DM Sans', sans-serif;
+    font-weight: 700; font-size: .875rem; border: none; border-radius: var(--r-sm);
+    cursor: pointer; letter-spacing: .01em;
+    transition: transform .12s, box-shadow .12s;
+  }
+  .btn-add:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(200,247,126,.25); }
+  .btn-add:active { transform: translateY(0); }
+
+  /* ── EXPENSE LIST ────────────────────────────────── */
+  .list-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r); overflow: hidden;
+  }
+  .list-header {
+    padding: .9rem 1.25rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .list-header h3 { font-family: 'DM Serif Display', serif; font-size: .95rem; }
+  .filter-row { display: flex; gap: .5rem; }
+  .filter-row select { width: auto; font-size: .75rem; padding: .35rem .6rem; }
+
+  .expense-list { max-height: 340px; overflow-y: auto; }
+  .expense-list::-webkit-scrollbar { width: 4px; }
+  .expense-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .expense-row {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .75rem 1.25rem; border-bottom: 1px solid var(--border);
+    transition: background .1s; cursor: default;
+    animation: fadeIn .25s ease;
+  }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+  .expense-row:hover { background: rgba(255,255,255,.025); }
+  .expense-row:last-child { border-bottom: none; }
+
+  .exp-icon {
+    width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; background: var(--border);
+  }
+  .exp-meta { flex: 1; min-width: 0; }
+  .exp-desc { font-size: .82rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .exp-cat  { font-size: .68rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .exp-amt  { font-family: 'DM Mono', monospace; font-size: .9rem; color: var(--accent3); font-weight: 500; }
+  .exp-date { font-size: .65rem; color: var(--muted); text-align: right; min-width: 58px; }
+  .exp-del {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: .85rem; padding: 4px 6px; border-radius: 4px;
+    opacity: 0; transition: opacity .15s, color .15s;
+  }
+  .expense-row:hover .exp-del { opacity: 1; }
+  .exp-del:hover { color: var(--accent3); }
+
+  .empty-state {
+    padding: 2.5rem 1rem; text-align: center;
+    color: var(--muted); font-size: .82rem;
+  }
+  .empty-state .big { font-size: 2rem; display: block; margin-bottom: .5rem; }
+
+  /* ── RIGHT PANEL — AI ADVISOR ──────────────────── */
+  .right-panel { display: flex; flex-direction: column; }
+  .advisor-header {
+    padding: 1.25rem 1.25rem .75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .advisor-header h2 { font-family: 'DM Serif Display', serif; font-size: 1.05rem; color: var(--text); }
+  .advisor-header p  { font-size: .75rem; color: var(--muted); margin-top: .2rem; }
+
+  .advisor-badge {
+    display: inline-flex; align-items: center; gap: .35rem;
+    background: rgba(200,247,126,.08); border: 1px solid rgba(200,247,126,.2);
+    border-radius: 20px; padding: .25rem .65rem; font-size: .68rem;
+    font-family: 'DM Mono', monospace; color: var(--accent); margin-bottom: .65rem;
+  }
+
+  .chat-window {
+    flex: 1; overflow-y: auto; padding: 1rem;
+    display: flex; flex-direction: column; gap: .75rem;
+  }
+  .chat-window::-webkit-scrollbar { width: 4px; }
+  .chat-window::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .chat-bubble {
+    max-width: 90%; padding: .75rem 1rem;
+    border-radius: var(--r); font-size: .82rem; line-height: 1.55;
+    animation: fadeIn .25s ease;
+  }
+  .chat-bubble.ai {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-bottom-left-radius: 4px; color: var(--text);
+    align-self: flex-start;
+  }
+  .chat-bubble.user {
+    background: rgba(200,247,126,.1); border: 1px solid rgba(200,247,126,.2);
+    border-bottom-right-radius: 4px; color: var(--accent);
+    align-self: flex-end;
+  }
+  .chat-bubble.thinking {
+    background: var(--surface); border: 1px solid var(--border2);
+    align-self: flex-start; display: flex; gap: 5px; align-items: center; padding: .75rem 1rem;
+  }
+  .dot-flashing { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: dotFlash 1.2s ease infinite; }
+  .dot-flashing:nth-child(2) { animation-delay: .2s; }
+  .dot-flashing:nth-child(3) { animation-delay: .4s; }
+  @keyframes dotFlash { 0%,80%,100%{opacity:.2}40%{opacity:1} }
+
+  .quick-prompts { display: flex; flex-wrap: wrap; gap: .4rem; padding: 0 1rem .5rem; }
+  .quick-btn {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 20px; padding: .3rem .7rem; font-size: .7rem;
+    color: var(--muted); cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: border-color .15s, color .15s;
+  }
+  .quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .chat-input-area {
+    padding: .75rem 1rem; border-top: 1px solid var(--border);
+    display: flex; gap: .5rem;
+  }
+  .chat-input-area input {
+    flex: 1; background: var(--bg);
+    border: 1px solid var(--border2);
+  }
+  .btn-send {
+    background: var(--accent); border: none; border-radius: var(--r-sm);
+    color: #0c0e0f; font-weight: 700; font-size: .8rem; cursor: pointer;
+    padding: .55rem 1rem; font-family: 'DM Sans', sans-serif;
+    transition: opacity .15s; white-space: nowrap;
+  }
+  .btn-send:disabled { opacity: .5; cursor: default; }
+  .btn-send:hover:not(:disabled) { opacity: .88; }
+
+  /* ── TOAST ──────────────────────────────────────── */
+  #toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: var(--r-sm); padding: .7rem 1.1rem;
+    font-size: .8rem; color: var(--text);
+    transform: translateY(8px); opacity: 0;
+    transition: all .25s ease; pointer-events: none; z-index: 200;
+    box-shadow: var(--shadow);
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--accent); }
+  #toast.error   { border-color: var(--accent3); }
+
+  /* ── RESPONSIVE ─────────────────────────────────── */
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+    .right-panel { border-top: 1px solid var(--border); min-height: 480px; }
+    .kpi-strip { grid-template-columns: repeat(2,1fr); }
+  }
+  @media (max-width: 560px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .kpi-strip { grid-template-columns: 1fr 1fr; }
+    .cat-grid  { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Ledger<span>AI Finance Advisor</span></div>
+  <div class="header-status"><div class="dot"></div>Live</div>
+</header>
+
+<main>
+  <!-- LEFT PANEL -->
+  <div class="left-panel">
+    <!-- KPI STRIP -->
+    <div class="kpi-strip">
+      <div class="kpi">
+        <div class="kpi-label">Total Spent</div>
+        <div class="kpi-value green" id="kpi-total">₹0</div>
+        <div class="kpi-sub">all time</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Transactions</div>
+        <div class="kpi-value" id="kpi-count">0</div>
+        <div class="kpi-sub">entries</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Avg. Expense</div>
+        <div class="kpi-value yellow" id="kpi-avg">₹0</div>
+        <div class="kpi-sub">per transaction</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Top Category</div>
+        <div class="kpi-value" id="kpi-top" style="font-size:1rem;padding-top:.25rem">—</div>
+        <div class="kpi-sub" id="kpi-top-amt"></div>
+      </div>
+    </div>
+
+    <div class="panel-body">
+      <!-- MONTHLY BAR CHART -->
+      <div class="chart-wrap">
+        <div class="chart-title">Monthly Spending</div>
+        <div class="bar-chart" id="bar-chart"></div>
+      </div>
+
+      <!-- CATEGORIES -->
+      <div class="chart-wrap">
+        <div class="chart-title">By Category</div>
+        <div class="cat-grid" id="cat-grid"><div style="color:var(--muted);font-size:.75rem">No data yet</div></div>
+      </div>
+
+      <!-- ADD EXPENSE FORM -->
+      <div class="form-card">
+        <div class="form-title">Add Expense</div>
+        <div class="form-grid">
+          <div>
+            <label>Amount (₹)</label>
+            <input type="number" id="f-amount" placeholder="0.00" min="0" step="0.01" />
+          </div>
+          <div>
+            <label>Date</label>
+            <input type="date" id="f-date" />
+          </div>
+        </div>
+        <div class="form-grid full" style="margin-top:.65rem">
+          <div>
+            <label>Description</label>
+            <input type="text" id="f-desc" placeholder="What did you spend on?" />
+          </div>
+        </div>
+        <div class="form-grid" style="margin-top:.65rem">
+          <div>
+            <label>Category</label>
+            <select id="f-cat">
+              <option>Food & Dining</option>
+              <option>Transport</option>
+              <option>Shopping</option>
+              <option>Entertainment</option>
+              <option>Utilities</option>
+              <option>Health</option>
+              <option>Education</option>
+              <option>Travel</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div>
+            <label>Note (optional)</label>
+            <input type="text" id="f-note" placeholder="Extra detail..." />
+          </div>
+        </div>
+        <button class="btn-add" onclick="addExpense()">+ Add Expense</button>
+      </div>
+
+      <!-- EXPENSE LIST -->
+      <div class="list-card">
+        <div class="list-header">
+          <h3>Recent Expenses</h3>
+          <div class="filter-row">
+            <select id="filter-cat" onchange="loadExpenses()">
+              <option value="">All Categories</option>
+              <option>Food & Dining</option>
+              <option>Transport</option>
+              <option>Shopping</option>
+              <option>Entertainment</option>
+              <option>Utilities</option>
+              <option>Health</option>
+              <option>Education</option>
+              <option>Travel</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="expense-list" id="expense-list">
+          <div class="empty-state"><span class="big">💸</span>No expenses yet.<br/>Add your first one above.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL — AI ADVISOR -->
+  <div class="right-panel">
+    <div class="advisor-header">
+      <div class="advisor-badge"><span>✦</span> Powered by Claude</div>
+      <h2>AI Finance Advisor</h2>
+      <p>Ask anything about your spending habits</p>
+    </div>
+
+    <div class="chat-window" id="chat-window">
+      <div class="chat-bubble ai">👋 Hi! I'm your personal finance advisor. I can see your expenses and help you make smarter money decisions. What would you like to know?</div>
+    </div>
+
+    <div class="quick-prompts">
+      <button class="quick-btn" onclick="sendQuick('Where am I overspending?')">Where am I overspending?</button>
+      <button class="quick-btn" onclick="sendQuick('How can I save more?')">How can I save more?</button>
+      <button class="quick-btn" onclick="sendQuick('Analyse my spending patterns')">Spending patterns</button>
+      <button class="quick-btn" onclick="sendQuick('Give me a monthly budget plan')">Budget plan</button>
+    </div>
+
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Ask a finance question…" onkeydown="if(event.key==='Enter')sendMessage()" />
+      <button class="btn-send" id="btn-send" onclick="sendMessage()">Ask →</button>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const API = '';  // same origin
+
+// ── CATEGORY CONFIG ──────────────────────────────────────
+const CAT_CONFIG = {
+  'Food & Dining':  { icon: '🍜', color: '#ff7e6b' },
+  'Transport':      { icon: '🚌', color: '#79c8f7' },
+  'Shopping':       { icon: '🛍️', color: '#c879f7' },
+  'Entertainment':  { icon: '🎬', color: '#ffda79' },
+  'Utilities':      { icon: '💡', color: '#c8f77e' },
+  'Health':         { icon: '🏥', color: '#7effc8' },
+  'Education':      { icon: '📚', color: '#f79c79' },
+  'Travel':         { icon: '✈️', color: '#79f7f2' },
+  'Other':          { icon: '📦', color: '#a0a0a0' },
+};
+
+// ── INIT ─────────────────────────────────────────────────
+document.getElementById('f-date').value = new Date().toISOString().slice(0,10);
+
+async function init() {
+  await loadExpenses();
+  await loadStats();
+}
+
+// ── LOAD EXPENSES ─────────────────────────────────────────
+async function loadExpenses() {
+  const cat = document.getElementById('filter-cat').value;
+  const url = cat ? `${API}/api/expenses?category=${encodeURIComponent(cat)}` : `${API}/api/expenses`;
+  const res = await fetch(url);
+  const data = await res.json();
+  renderList(data);
+}
+
+function renderList(expenses) {
+  const el = document.getElementById('expense-list');
+  if (!expenses.length) {
+    el.innerHTML = `<div class="empty-state"><span class="big">💸</span>No expenses here yet.</div>`;
+    return;
+  }
+  el.innerHTML = expenses.map(e => {
+    const cfg = CAT_CONFIG[e.category] || CAT_CONFIG['Other'];
+    return `
+    <div class="expense-row" id="row-${e.id}">
+      <div class="exp-icon">${cfg.icon}</div>
+      <div class="exp-meta">
+        <div class="exp-desc" title="${e.description}">${e.description}</div>
+        <div class="exp-cat">${e.category}</div>
+      </div>
+      <div>
+        <div class="exp-amt">₹${e.amount.toLocaleString('en-IN',{minimumFractionDigits:2})}</div>
+        <div class="exp-date">${formatDate(e.date)}</div>
+      </div>
+      <button class="exp-del" title="Delete" onclick="deleteExpense('${e.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// ── LOAD STATS ─────────────────────────────────────────────
+async function loadStats() {
+  const res  = await fetch(`${API}/api/stats`);
+  const data = await res.json();
+
+  const fmt = n => '₹' + (n||0).toLocaleString('en-IN', {minimumFractionDigits:2});
+
+  document.getElementById('kpi-total').textContent = fmt(data.total);
+  document.getElementById('kpi-count').textContent = data.count || 0;
+  document.getElementById('kpi-avg').textContent   = fmt(data.average);
+
+  const catEntries = Object.entries(data.by_category || {}).sort((a,b)=>b[1]-a[1]);
+  if (catEntries.length) {
+    document.getElementById('kpi-top').textContent     = catEntries[0][0];
+    document.getElementById('kpi-top-amt').textContent = fmt(catEntries[0][1]);
+  }
+
+  renderBarChart(data.by_month || {});
+  renderCatGrid(data.by_category || {});
+}
+
+function renderBarChart(byMonth) {
+  const el = document.getElementById('bar-chart');
+  const entries = Object.entries(byMonth);
+  if (!entries.length) { el.innerHTML = `<div style="color:var(--muted);font-size:.75rem;margin:auto">No data</div>`; return; }
+  const max = Math.max(...entries.map(e=>e[1]));
+  el.innerHTML = entries.slice(-8).map(([month, amt]) => {
+    const pct = max > 0 ? (amt / max) * 100 : 0;
+    const label = month.slice(5);
+    return `<div class="bar-group">
+      <div class="bar" style="height:${pct}%" data-tip="₹${amt.toLocaleString('en-IN')}"></div>
+      <div class="bar-label">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCatGrid(byCat) {
+  const el = document.getElementById('cat-grid');
+  const entries = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  if (!entries.length) { el.innerHTML = `<div style="color:var(--muted);font-size:.75rem">No data yet</div>`; return; }
+  el.innerHTML = entries.map(([cat, amt]) => {
+    const cfg = CAT_CONFIG[cat] || CAT_CONFIG['Other'];
+    return `<div class="cat-pill">
+      <div class="cat-dot" style="background:${cfg.color}"></div>
+      <div class="cat-name">${cat.split(' ')[0]}</div>
+      <div class="cat-amt">₹${amt.toLocaleString('en-IN',{minimumFractionDigits:0})}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── ADD EXPENSE ────────────────────────────────────────────
+async function addExpense() {
+  const amount = parseFloat(document.getElementById('f-amount').value);
+  const desc   = document.getElementById('f-desc').value.trim();
+  const date   = document.getElementById('f-date').value;
+  const cat    = document.getElementById('f-cat').value;
+  const note   = document.getElementById('f-note').value.trim();
+
+  if (!amount || amount <= 0) return showToast('Enter a valid amount', 'error');
+  if (!desc)                  return showToast('Enter a description', 'error');
+
+  const res = await fetch(`${API}/api/expenses`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ amount, description: desc, date, category: cat, note }),
+  });
+
+  if (res.ok) {
+    document.getElementById('f-amount').value = '';
+    document.getElementById('f-desc').value   = '';
+    document.getElementById('f-note').value   = '';
+    showToast('Expense added ✓', 'success');
+    await loadExpenses();
+    await loadStats();
+  } else {
+    showToast('Failed to add expense', 'error');
+  }
+}
+
+// ── DELETE EXPENSE ─────────────────────────────────────────
+async function deleteExpense(id) {
+  const res = await fetch(`${API}/api/expenses/${id}`, { method: 'DELETE' });
+  if (res.ok) {
+    document.getElementById(`row-${id}`)?.remove();
+    showToast('Deleted', 'success');
+    await loadStats();
+  }
+}
+
+// ── AI ADVISOR ─────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const q = input.value.trim();
+  if (!q) return;
+  input.value = '';
+  await askAI(q);
+}
+
+function sendQuick(q) { askAI(q); }
+
+async function askAI(question) {
+  const window_ = document.getElementById('chat-window');
+  const btn     = document.getElementById('btn-send');
+
+  appendBubble('user', question);
+  const thinking = appendBubble('thinking', '');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`${API}/api/ai-advice`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ question }),
+    });
+    const data = await res.json();
+    thinking.remove();
+    appendBubble('ai', data.advice || 'Sorry, I could not generate a response.');
+  } catch {
+    thinking.remove();
+    appendBubble('ai', 'Connection error. Please ensure the backend is running.');
+  } finally {
+    btn.disabled = false;
+    window_.scrollTop = window_.scrollHeight;
+  }
+}
+
+function appendBubble(type, text) {
+  const w = document.getElementById('chat-window');
+  const el = document.createElement('div');
+  if (type === 'thinking') {
+    el.className = 'chat-bubble thinking';
+    el.innerHTML = `<div class="dot-flashing"></div><div class="dot-flashing"></div><div class="dot-flashing"></div>`;
+  } else {
+    el.className = `chat-bubble ${type}`;
+    el.textContent = text;
+  }
+  w.appendChild(el);
+  w.scrollTop = w.scrollHeight;
+  return el;
+}
+
+// ── UTILS ──────────────────────────────────────────────────
+function formatDate(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+}
+
+let toastTimer;
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = '', 2500);
+}
+
+// Start
+init();
+</script>
+</body>
+</html>
