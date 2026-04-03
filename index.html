@@ -36,7 +36,7 @@
     flex-direction: column;
   }
 
-
+  /* ── NOISE OVERLAY ──────────────────────────────── */
   body::before {
     content: '';
     position: fixed; inset: 0;
@@ -46,7 +46,7 @@
     z-index: 999;
   }
 
-  
+  /* ── HEADER ─────────────────────────────────────── */
   header {
     display: flex;
     align-items: center;
@@ -66,13 +66,13 @@
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
 
-  
+  /* ── LAYOUT ─────────────────────────────────────── */
   main { flex: 1; display: grid; grid-template-columns: 1fr 360px; gap: 0; }
 
-  
+  /* ── LEFT PANEL ─────────────────────────────────── */
   .left-panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 
-  
+  /* ── KPI STRIP ──────────────────────────────────── */
   .kpi-strip {
     display: grid; grid-template-columns: repeat(4, 1fr);
     border-bottom: 1px solid var(--border);
@@ -90,10 +90,10 @@
   .kpi-value.yellow { color: var(--accent2); }
   .kpi-sub { font-size: .7rem; color: var(--muted); margin-top: .25rem; }
 
- 
+  /* ── CHART + FORM ────────────────────────────────── */
   .panel-body { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
 
- 
+  /* Chart area */
   .chart-wrap {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r); padding: 1.25rem;
@@ -128,7 +128,7 @@
   .cat-name { font-size: .72rem; color: var(--muted); }
   .cat-amt  { font-size: .78rem; font-family: 'DM Mono', monospace; color: var(--text); margin-left: auto; }
 
- 
+  /* ── ADD EXPENSE FORM ────────────────────────────── */
   .form-card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r); padding: 1.25rem;
@@ -158,7 +158,7 @@
   .btn-add:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(200,247,126,.25); }
   .btn-add:active { transform: translateY(0); }
 
- 
+  /* ── EXPENSE LIST ────────────────────────────────── */
   .list-card {
     background: var(--surface); border: 1px solid var(--border);
     border-radius: var(--r); overflow: hidden;
@@ -209,7 +209,7 @@
   }
   .empty-state .big { font-size: 2rem; display: block; margin-bottom: .5rem; }
 
-
+  /* ── RIGHT PANEL — AI ADVISOR ──────────────────── */
   .right-panel { display: flex; flex-direction: column; }
   .advisor-header {
     padding: 1.25rem 1.25rem .75rem;
@@ -282,7 +282,7 @@
   .btn-send:disabled { opacity: .5; cursor: default; }
   .btn-send:hover:not(:disabled) { opacity: .88; }
 
- 
+  /* ── TOAST ──────────────────────────────────────── */
   #toast {
     position: fixed; bottom: 1.5rem; right: 1.5rem;
     background: var(--surface); border: 1px solid var(--border2);
@@ -296,7 +296,7 @@
   #toast.success { border-color: var(--accent); }
   #toast.error   { border-color: var(--accent3); }
 
-  
+  /* ── RESPONSIVE ─────────────────────────────────── */
   @media (max-width: 900px) {
     main { grid-template-columns: 1fr; }
     .right-panel { border-top: 1px solid var(--border); min-height: 480px; }
